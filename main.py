@@ -5,7 +5,7 @@ import networkx as nx
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 
-model = FakeNewsModel(num_agents=100, num_influencers=10, num_bots=5)
+model = FakeNewsModel(num_agents=100, num_influencers=100, num_bots=50)
 
 color_map = {
     "non-believer": "green",
@@ -21,7 +21,7 @@ shape_map = {
 
 pos = nx.spring_layout(model.graph, seed=42)
 
-for step_num in range(20):
+for step_num in range(10):
     print(f"Step {step_num}")
     if step_num % 3 == 0:
         print("nuova connessione")
@@ -69,7 +69,7 @@ for step_num in range(20):
             del model.agents_by_id[agent.unique_id]
             model.graph.remove_node(agent.unique_id)
         agent.shared = False
-    model.step()
+    
     susceptible = [a.unique_id for a in model.agents if a.credulity == "susceptible"]
     plt.figure(figsize=(10, 8))
    
@@ -113,3 +113,4 @@ for step_num in range(20):
     plt.savefig(f"results/step_{step_num:02d}.png")
     plt.close()
 
+    model.step()

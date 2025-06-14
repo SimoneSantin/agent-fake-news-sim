@@ -16,74 +16,128 @@ class SocialAgent(Agent):
         if self.deleted:
             return
         if self.role == "bot":
-            news = News(content_id=str(uuid.uuid4()))
+            news = News(content_id=str(uuid.uuid4()), is_fake=True)
             for neighbor_id in list(self.model.graph.neighbors(self.unique_id)):
                 neighbor = self.model.agents_by_id[neighbor_id]
                 if not neighbor.deleted:
+                    news.sharers.add(self.unique_id)
                     self.news_registry[news.content_id] = news
+                    self.model.update_credibility(news)
                     neighbor.receive_fake_news(self.unique_id, news)
 
         
         elif self.role in ["user", "influencer"]:
-            if self.credulity == "gullible":
-                news = News(content_id=str(uuid.uuid4()))
+            if self.credulity == "gullible" and random.random() < 0.5:
+                news = News(content_id=str(uuid.uuid4()), is_fake=True)
                 for neighbor_id in list(self.model.graph.neighbors(self.unique_id)):
                     neighbor = self.model.agents_by_id[neighbor_id]
                     if not neighbor.deleted:
+                        news.sharers.add(self.unique_id)
                         self.news_registry[news.content_id] = news
+                        self.model.update_credibility(news)
+                        neighbor.receive_fake_news(self.unique_id, news)
+            elif self.credulity == "non-believer" and random.random() < 0.2:
+                news = News(content_id=str(uuid.uuid4()), is_fake=False)
+                for neighbor_id in list(self.model.graph.neighbors(self.unique_id)):
+                    neighbor = self.model.agents_by_id[neighbor_id]
+                    if not neighbor.deleted:
+                        news.sharers.add(self.unique_id)
+                        self.news_registry[news.content_id] = news
+                        self.model.update_credibility(news)
                         neighbor.receive_fake_news(self.unique_id, news)
                        
                     
     def receive_fake_news(self, sender_id, news):
-        release_step = self.model.delayed_news.get(news.content_id, 0)
-        if self.model.step_num >= release_step:
-            if self.credulity == "non-believer":
-                sender = self.model.agents_by_id[sender_id]
-                if random.random() < 0.2: 
-                        print(f"Non-believer {self.unique_id} non crede a {sender.unique_id} per news {news.content_id}")
-                        self.model.graph.remove_edge(self.unique_id, sender.unique_id)
-                        sender = self.model.agents_by_id[sender_id]
-                        sender.reports_received += 1
-                        news.reports += 1
-                        if news.reports >= 2 and not news.is_flagged:
-                            news.is_flagged = True
-                            self.model.delayed_news[news.content_id] = self.model.step_num + 2
-                            print(f"News {news.content_id} è stata flaggata come sospetta")
-                        self.news_registry[news.content_id] = news
-                        if sender.reports_received >= 3:
-                            sender.deleted = True
-                            print(sender.reports_received, "report received")
-                            print(sender_id, "deleted")
+        sender = self.model.agents_by_id[sender_id]
+        score = news.credibility_score
 
-            elif self.credulity == "susceptible":
-                gullible_neighbors = [
-                    self.model.agents_by_id[n]
-                    for n in self.model.graph.neighbors(self.unique_id)
-                    if self.model.agents_by_id[n].credulity == "gullible"
-                ]
-                n_gullible = len(gullible_neighbors)
-                if news.is_flagged:
-                    if random.random() < 0.3:
-                        self.credulity = "non-believer"
-                        print(f"{self.unique_id} è diventato non-believer per notizia flaggata {news.content_id}")
-                else:
-                    prob = min(0.1 * n_gullible, 0.9)
-                    if random.random() < prob and news.content_id not in self.news_registry:
-                        self.credulity = "gullible"
-                        for neighbor_id in list(self.model.graph.neighbors(self.unique_id)):
-                            neighbor = self.model.agents_by_id[neighbor_id]
-                            if not neighbor.deleted:
-                                self.news_registry[news.content_id] = news
-                                neighbor.receive_fake_news(self.unique_id, news)
-                    
+        # === NON-BELIEVER ===
+        if self.credulity == "non-believer":
+            if news.is_flagged:
+                self.model.graph.remove_edge(self.unique_id, sender.unique_id)
+                sender.reports_received += 1
+                news.reports += 1
+                self.news_registry[news.content_id] = news
+                if news.reports >= 3 and not news.is_flagged:
+                    news.is_flagged = True
+                    print(f"News {news.content_id} è stata flaggata come sospetta")
+                if sender.reports_received >= 5:
+                    sender.deleted = True
+                    print(sender.reports_received, "report received")
+                    print(sender_id, "deleted")
 
-            elif self.credulity == "gullible" and news.content_id not in self.news_registry:
-                if random.random() < 0.5: 
+            elif score >= 0.7 and random.random() < 0.6:
+                news.sharers.add(self.unique_id)
+                self.news_registry[news.content_id] = news
+                self.model.update_credibility(news)
+                for neighbor_id in list(self.model.graph.neighbors(self.unique_id)):
+                    neighbor = self.model.agents_by_id[neighbor_id]
+                    if not neighbor.deleted and news.content_id not in neighbor.news_registry:
+                        neighbor.receive_fake_news(self.unique_id, news)
+
+            elif score < 0.3 and random.random() < 0.6:
+                self.model.graph.remove_edge(self.unique_id, sender.unique_id)
+                sender.reports_received += 1
+                news.reports += 1
+                self.news_registry[news.content_id] = news
+                if news.reports >= 3 and not news.is_flagged:
+                    news.is_flagged = True
+                    print(f"News {news.content_id} è stata flaggata come sospetta")
+                if sender.reports_received >= 5:
+                    sender.deleted = True
+                    print(sender.reports_received, "report received")
+                    print(sender_id, "deleted")
+
+            else:
+                if random.random() < 0.3:
+                    if news.is_fake:
+                        print(f"Non-believer {score} ha condiviso una fake news")
+                    news.sharers.add(self.unique_id)
+                    self.news_registry[news.content_id] = news
+                    self.model.update_credibility(news)
                     for neighbor_id in list(self.model.graph.neighbors(self.unique_id)):
                         neighbor = self.model.agents_by_id[neighbor_id]
-                        if not neighbor.deleted:
-                            self.news_registry[news.content_id] = news
+                        if not neighbor.deleted and news.content_id not in neighbor.news_registry:
                             neighbor.receive_fake_news(self.unique_id, news)
-                            
+
+        # === SUSCEPTIBLE ===
+        elif self.credulity == "susceptible":
+            gullible_neighbors = [
+                self.model.agents_by_id[n]
+                for n in self.model.graph.neighbors(self.unique_id)
+                if self.model.agents_by_id[n].credulity == "gullible"
+            ]
+            n_gullible = len(gullible_neighbors)
+
+            if news.is_flagged and score < 0.3:
+                if random.random() < 0.5:
+                    self.credulity = "non-believer"
+                 
+
+            elif news.is_fake:
+                prob = min(0.1 * n_gullible, 0.9)
+                if random.random() < prob and news.content_id not in self.news_registry:
+                    self.credulity = "gullible"
+                    news.sharers.add(self.unique_id)
+                    self.news_registry[news.content_id] = news
+                    self.model.update_credibility(news)
+                    for neighbor_id in list(self.model.graph.neighbors(self.unique_id)):
+                        neighbor = self.model.agents_by_id[neighbor_id]
+                        if not neighbor.deleted and news.content_id not in neighbor.news_registry:
+                            neighbor.receive_fake_news(self.unique_id, news)
+
+        # === GULLIBLE ===
+        elif self.credulity == "gullible" and news.content_id not in self.news_registry:
+            share_prob = 1.0 if news.is_fake else 0.2  
+            if random.random() < share_prob:
+                if news.is_fake == False:
+                     print(f"gullible {self.unique_id} ha condiviso una true news")
+                news.sharers.add(self.unique_id)
+                self.news_registry[news.content_id] = news
+                self.model.update_credibility(news)
+                for neighbor_id in list(self.model.graph.neighbors(self.unique_id)):
+                    neighbor = self.model.agents_by_id[neighbor_id]
+                    if not neighbor.deleted and news.content_id not in neighbor.news_registry:
+                        neighbor.receive_fake_news(self.unique_id, news)
 
 

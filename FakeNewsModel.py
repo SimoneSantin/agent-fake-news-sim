@@ -51,6 +51,41 @@ class FakeNewsModel(Model):
             self.agent_set.add(custom_agents)
             self.agents_by_id[custom_agents.unique_id] = custom_agents
 
+                                
+    def update_credibility(self, news):
+        if not news.sharers:
+            news.credibility_score = 0.5
+            return
+
+        gullible = 0
+        susceptible = 0
+        non_believer = 0
+        bots = 0
+
+        for agent_id in news.sharers:
+            agent = self.agents_by_id[agent_id]
+            if agent.role == "bot":
+                bots += 1
+            elif agent.credulity == "gullible":
+                gullible += 1
+            elif agent.credulity == "susceptible":
+                susceptible += 1
+            elif agent.credulity == "non-believer":
+                non_believer += 1
+
+        total = gullible + susceptible + non_believer + bots
+        if total == 0:
+            news.credibility_score = 0.5
+            return
+
+        score = (
+            0.2 * gullible +
+            0.4 * susceptible +
+            0.8 * non_believer +
+            0.0 * bots
+        ) / total
+
+        news.credibility_score = round(score, 3)
 
 
 
