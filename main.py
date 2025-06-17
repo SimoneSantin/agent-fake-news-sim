@@ -5,7 +5,7 @@ import networkx as nx
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 
-model = FakeNewsModel(num_agents=100, num_influencers=10, num_bots=5)
+model = FakeNewsModel(num_agents=1000, num_influencers=100, num_bots=50)
 
 color_map = {
     "non-believer": "green",
@@ -19,12 +19,18 @@ shape_map = {
     "bot": "^"           # triangolo
 }
 
+susceptible_count = []
+gullible_count = []
+non_believer_count = []
+
+
+true_news_shares = []
+fake_news_shares = []
 pos = nx.spring_layout(model.graph, seed=42)
 
-for step_num in range(25):
+for step_num in range(70):
     print(f"Step {step_num}")
     if step_num % 3 == 0:
-        print("nuova connessione")
         gullible = [a for a in model.agent_set if a.credulity == "gullible"]
         susceptible = [a for a in model.agent_set if a.credulity == "susceptible"]
         non_believer = [a for a in model.agent_set if a.credulity == "non-believer"]
@@ -70,7 +76,6 @@ for step_num in range(25):
             model.graph.remove_node(agent.unique_id)
         agent.shared = False
     
-    susceptible = [a.unique_id for a in model.agents if a.credulity == "susceptible"]
     plt.figure(figsize=(10, 8))
    
 
@@ -112,7 +117,45 @@ for step_num in range(25):
     plt.legend(handles=legend_elements, loc='upper right')
     plt.savefig(f"results/step_{step_num:02d}.png")
     plt.close()
-    print(len(gullible))
-    print(len(non_believer))
-    print(len(susceptible))
+
+    susceptible_count.append(sum(1 for a in model.agents_by_id.values() if a.credulity == "susceptible" and not a.deleted))
+    gullible_count.append(sum(1 for a in model.agents_by_id.values() if a.credulity == "gullible" and not a.deleted))
+    non_believer_count.append(sum(1 for a in model.agents_by_id.values() if a.credulity == "non-believer" and not a.deleted))
+
     model.step()
+
+    true_shares = sum(news.total_shares for news in model.all_news.values() if not news.is_fake)
+    fake_shares = sum(news.total_shares for news in model.all_news.values() if news.is_fake)
+
+    true_news_shares.append(true_shares)
+    fake_news_shares.append(fake_shares)
+
+plt.figure(figsize=(8, 5))
+plt.plot(susceptible_count, label="Susceptible", color="orange", linestyle='-', linewidth=2)
+plt.plot(gullible_count, label="Gullible", color="red", linestyle='-', linewidth=2)
+plt.plot(non_believer_count, label="Non-Believer", color="green", linestyle='-', linewidth=2)
+
+plt.xlabel("Timesteps", fontsize=12)
+plt.ylabel("Number of agents", fontsize=12)
+plt.title("Agents' Credulity Over Time", fontsize=14)
+
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.legend(frameon=False)
+plt.tight_layout()
+plt.savefig("results/agents_evolution_better.png")
+plt.close()
+  
+
+plt.figure(figsize=(8, 5))
+plt.plot(true_news_shares, label="True News Shares", color="blue", linestyle='-', linewidth=2, marker='o', markersize=4)
+plt.plot(fake_news_shares, label="Fake News Shares", color="purple", linestyle='-', linewidth=2, marker='x', markersize=4)
+
+plt.xlabel("Timesteps", fontsize=12)
+plt.ylabel("Total Shares", fontsize=12)
+plt.title("News Diffusion Over Time", fontsize=14)
+
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.legend(frameon=False)
+plt.tight_layout()
+plt.savefig("results/news_diffusion_better.png")
+plt.close()

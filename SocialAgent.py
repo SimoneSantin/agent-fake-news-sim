@@ -20,6 +20,7 @@ class SocialAgent(Agent):
             return
         if self.role == "bot":
             news = News(content_id=str(uuid.uuid4()), is_fake=True)
+            self.model.all_news[news.content_id] = news
             if self.reports_received >= 3:
                 news.is_flagged = True
             for neighbor_id in list(self.model.graph.neighbors(self.unique_id)):
@@ -33,6 +34,7 @@ class SocialAgent(Agent):
         elif self.role in ["user", "influencer"]:
             if self.credulity == "gullible" and random.random() < 0.8:
                 news = News(content_id=str(uuid.uuid4()), is_fake=True)
+                self.model.all_news[news.content_id] = news
                 if self.reports_received >= 3:
                     news.is_flagged = True
                 for neighbor_id in list(self.model.graph.neighbors(self.unique_id)):
@@ -43,8 +45,9 @@ class SocialAgent(Agent):
                         neighbor.receive_fake_news(self.unique_id, news)
             elif self.credulity == "non-believer" and random.random() < 0.3:
                 news = News(content_id=str(uuid.uuid4()), is_fake=False)
+                self.model.all_news[news.content_id] = news
                 if self.reports_received >= 3:
-                     print("notizia non believer gia flaggata")
+                     #print("notizia non believer gia flaggata")
                      news.is_flagged = True
                 for neighbor_id in list(self.model.graph.neighbors(self.unique_id)):
                     neighbor = self.model.agents_by_id[neighbor_id]
@@ -58,11 +61,10 @@ class SocialAgent(Agent):
         if news.is_banned:
             return
         score = news.credibility_score
-        #fare un riassunto delle pratiche di ban, aggiungendone magari una che rallenti o banni
         # === NON-BELIEVER ===
         if self.credulity == "non-believer":
             if news.is_flagged:
-                if score < 0.5:
+                if score <= 0.5:
                     self.model.send_report(news, self, sender_id)
 
             elif score >= 0.7:

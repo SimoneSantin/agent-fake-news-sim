@@ -9,7 +9,7 @@ from mesa.agent import AgentSet
 class FakeNewsModel(Model):
     def __init__(self, num_agents, num_influencers, num_bots):
         super().__init__() 
-        self.delayed_news = {}
+        self.all_news = {}
         self.step_num = 0
         self.num_agents = num_agents
         self.agent_set = AgentSet([])
@@ -123,18 +123,27 @@ class FakeNewsModel(Model):
                 if news.reports >= 3 and not news.is_flagged:
                     news.is_flagged = True
                 reporter.false_reports += 1
-                print(f"Report infondato: {reporter.unique_id} ha segnalato una notizia vera.")
-        else:
-            print(f"reporter  {reporter.credulity} non può piu segnalare")
+                #print(f"Report infondato: {reporter.unique_id} ha segnalato una notizia vera.")
     
     def share_news(self, sharer_agent, news):
         news.sharers.add(sharer_agent.unique_id)
         sharer_agent.news_registry[news.content_id] = news
         self.update_credibility(news)
+        news.total_shares += 1
+        reports = sharer_agent.reports_received
+        visible_ratio = max(0, 1.0 - 0.2 * reports) 
+        neighbors = list(self.graph.neighbors(sharer_agent.unique_id))
 
-        for neighbor_id in list(self.graph.neighbors(sharer_agent.unique_id)):
+        if visible_ratio == 1.0:
+            target_neighbors = neighbors
+        else:
+            k = int(visible_ratio * len(neighbors))
+            target_neighbors = random.sample(neighbors, k)
+
+        for neighbor_id in target_neighbors:
             neighbor = self.agents_by_id[neighbor_id]
             if not neighbor.deleted and news.content_id not in neighbor.news_registry:
                 neighbor.receive_fake_news(sharer_agent.unique_id, news)
+
 
                 
