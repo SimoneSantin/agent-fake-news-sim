@@ -16,14 +16,13 @@ class FakeNewsModel(Model):
         self.agents_by_id = {} #In modo da avere un accesso diretto agli agenti
         self.graph = nx.Graph() 
         num_non_bots = num_agents - num_bots
-        num_gullible = int(num_non_bots * 0.15)
+        num_gullible = int(num_non_bots * 0.20)
         num_susceptible = int(num_non_bots * 0.60)
         num_non_believer = num_non_bots - num_gullible - num_susceptible  
         credulities = (["gullible"] * num_gullible +
                     ["susceptible"] * num_susceptible +
                     ["non-believer"] * num_non_believer)
         random.shuffle(credulities)
-
         credulity_index = 0   
 
         for i in range(num_agents):
@@ -85,6 +84,9 @@ class FakeNewsModel(Model):
             0.0 * bots
         ) / total
 
+        penalty = 0.05 * news.reports
+        score = max(0.0, score - penalty)
+
         news.credibility_score = round(score, 3)
 
 
@@ -93,3 +95,46 @@ class FakeNewsModel(Model):
         print("Step number:", self.step_num)
         self.step_num += 1
         self.agent_set.shuffle_do("step")
+
+
+    def send_report(self, news, reporter, sender_id):
+        sender = self.agents_by_id[sender_id]
+        reporter.news_registry[news.content_id] = news
+        if reporter.false_reports < 3:
+            if news.is_fake:
+                sender.reports_received += 1
+                news.reports += 1
+
+                if news.reports >= 3 and not news.is_flagged:
+                    news.is_flagged = True
+                    print(f"News {news.content_id} è stata flaggata come sospetta")
+
+                if news.reports >= 5 and not news.is_banned:
+                    news.is_banned = True
+                    print(f"News {news.content_id} è stata bannata dopo 5 report")
+
+                if sender.reports_received >= 5:
+                    sender.deleted = True
+                    print(f"{sender_id} deleted")
+
+            else: 
+                sender.reports_received += 1
+                news.reports += 1
+                if news.reports >= 3 and not news.is_flagged:
+                    news.is_flagged = True
+                reporter.false_reports += 1
+                print(f"Report infondato: {reporter.unique_id} ha segnalato una notizia vera.")
+        else:
+            print(f"reporter  {reporter.credulity} non può piu segnalare")
+    
+    def share_news(self, sharer_agent, news):
+        news.sharers.add(sharer_agent.unique_id)
+        sharer_agent.news_registry[news.content_id] = news
+        self.update_credibility(news)
+
+        for neighbor_id in list(self.graph.neighbors(sharer_agent.unique_id)):
+            neighbor = self.agents_by_id[neighbor_id]
+            if not neighbor.deleted and news.content_id not in neighbor.news_registry:
+                neighbor.receive_fake_news(sharer_agent.unique_id, news)
+
+                

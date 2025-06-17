@@ -6,3 +6,4 @@ class News:
         self.is_fake = is_fake
         self.sharers = set()
         self.credibility_score = 0.5
+        self.is_banned = False
