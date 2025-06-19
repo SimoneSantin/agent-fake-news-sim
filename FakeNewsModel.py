@@ -45,7 +45,7 @@ class FakeNewsModel(Model):
                 credulity_index += 1
                 custom_agents = SocialAgent(self, role, credulity)
                 self.graph.add_node(node_id)
-                self.graph.add_edges_from([(node_id, random.choice(list(self.graph.nodes))) for _ in range(3)])
+                self.graph.add_edges_from([(node_id, random.choice(list(self.graph.nodes))) for _ in range(5)])
 
             self.agent_set.add(custom_agents)
             self.agents_by_id[custom_agents.unique_id] = custom_agents
@@ -100,30 +100,36 @@ class FakeNewsModel(Model):
     def send_report(self, news, reporter, sender_id):
         sender = self.agents_by_id[sender_id]
         reporter.news_registry[news.content_id] = news
-        if reporter.false_reports < 3:
+
+        if reporter.report_cooldown == 0:
             if news.is_fake:
                 sender.reports_received += 1
                 news.reports += 1
-
                 if news.reports >= 3 and not news.is_flagged:
                     news.is_flagged = True
-                    print(f"News {news.content_id} è stata flaggata come sospetta")
 
                 if news.reports >= 5 and not news.is_banned:
                     news.is_banned = True
-                    print(f"News {news.content_id} è stata bannata dopo 5 report")
 
                 if sender.reports_received >= 5:
                     sender.deleted = True
-                    print(f"{sender_id} deleted")
 
             else: 
+                reporter.false_reports += 1
+                if reporter.false_reports >= 5:
+                    reporter.deleted = True
                 sender.reports_received += 1
                 news.reports += 1
                 if news.reports >= 3 and not news.is_flagged:
                     news.is_flagged = True
-                reporter.false_reports += 1
-                #print(f"Report infondato: {reporter.unique_id} ha segnalato una notizia vera.")
+
+                if news.reports >= 5 and not news.is_banned:
+                    news.is_banned = True
+
+                if sender.reports_received >= 5:
+                    sender.deleted = True
+                reporter.report_cooldown = 2
+        
     
     def share_news(self, sharer_agent, news):
         news.sharers.add(sharer_agent.unique_id)

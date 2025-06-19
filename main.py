@@ -5,7 +5,7 @@ import networkx as nx
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 
-model = FakeNewsModel(num_agents=1000, num_influencers=100, num_bots=50)
+model = FakeNewsModel(num_agents=100, num_influencers=10, num_bots=5)
 
 color_map = {
     "non-believer": "green",
@@ -28,14 +28,14 @@ true_news_shares = []
 fake_news_shares = []
 pos = nx.spring_layout(model.graph, seed=42)
 
-for step_num in range(70):
+for step_num in range(100):
     print(f"Step {step_num}")
     if step_num % 3 == 0:
         gullible = [a for a in model.agent_set if a.credulity == "gullible"]
         susceptible = [a for a in model.agent_set if a.credulity == "susceptible"]
         non_believer = [a for a in model.agent_set if a.credulity == "non-believer"]
 
-        def try_add_edge(a1, a2, prob=0.3):
+        def try_add_edge(a1, a2, prob=0.5):
             if a1.unique_id != a2.unique_id and not model.graph.has_edge(a1.unique_id, a2.unique_id):
                 if random.random() < prob:
                     model.graph.add_edge(a1.unique_id, a2.unique_id)
@@ -142,7 +142,7 @@ plt.title("Agents' Credulity Over Time", fontsize=14)
 plt.grid(True, linestyle='--', alpha=0.6)
 plt.legend(frameon=False)
 plt.tight_layout()
-plt.savefig("results/agents_evolution_better.png")
+plt.savefig("results/agents_evolution.png")
 plt.close()
   
 
@@ -157,5 +157,7 @@ plt.title("News Diffusion Over Time", fontsize=14)
 plt.grid(True, linestyle='--', alpha=0.6)
 plt.legend(frameon=False)
 plt.tight_layout()
-plt.savefig("results/news_diffusion_better.png")
+plt.savefig("results/news_diffusion.png")
 plt.close()
+
+plt.figure(figsize=(8, 5))
